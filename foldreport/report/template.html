@@ -56,6 +56,17 @@ footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px
 .filters label { font-size: 12px; color: var(--muted); }
 .filters input[type="range"] { width: 120px; accent-color: var(--accent); }
 .filter-count { font-size: 12px; color: var(--muted); margin-left: auto; }
+/* --- Provenance panel --- */
+.provenance { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.provenance summary { cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; }
+.provenance summary:hover { color: var(--accent); }
+.provenance[open] summary { color: var(--ink); margin-bottom: 10px; }
+.prov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 18px; font-size: 12px; }
+.prov-item { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dotted var(--line); padding: 3px 0; }
+.prov-item span { color: var(--muted); }
+.prov-item b { color: var(--ink); text-align: right; word-break: break-word; }
+.prov-na { color: var(--muted); font-style: italic; border: 0; }
+.prov-sub { grid-column: 1 / -1; margin-top: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 /* --- Interactive PAE --- */
 .pae-container { position: relative; display: inline-block; }
 .pae-canvas { border: 1px solid var(--line); border-radius: 8px; background: #fff; max-width: 100%; cursor: crosshair; }
@@ -125,6 +136,12 @@ __TDMOL_JS__
 </script>
 <script>
 var FOLDREPORT_PAE = __PAE_JSON__;
+</script>
+<script>
+// ---- Embedded provenance (machine-readable, for reproducibility) ----
+// Keyed by viewer id; mirrors the "Provenance & reproducibility" panel on each card so
+// a reviewer or script can recover what produced every figure straight from this file.
+var FOLDREPORT_PROVENANCE = __PROVENANCE_JSON__;
 </script>
 <script>
 // ---- Table filtering ----
@@ -263,13 +280,17 @@ var FOLDREPORT_PAE = __PAE_JSON__;
 <script>
 // ---- 3D viewers, colored by pLDDT ----
 var FOLDREPORT_MODELS = __MODELS_JSON__;
+// pLDDT band colors (very high, confident, low, very low) — matches the figures/legend.
+var FOLDREPORT_PLDDT_COLORS = __PLDDT_COLORS_JS__;
 (function () {
+  function hex(s) { return parseInt(s.replace("#", ""), 16); }
+  var palette = FOLDREPORT_PLDDT_COLORS.map(hex);
   function band(atom) {
     var b = atom.b;
-    if (b > 90) return 0x0053D6;
-    if (b > 70) return 0x65CBF3;
-    if (b > 50) return 0xFFDB13;
-    return 0xFF7D45;
+    if (b > 90) return palette[0];
+    if (b > 70) return palette[1];
+    if (b > 50) return palette[2];
+    return palette[3];
   }
   function init() {
     if (typeof $3Dmol === "undefined") return;

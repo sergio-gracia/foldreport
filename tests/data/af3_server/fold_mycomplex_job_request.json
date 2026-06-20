@@ -1,1 +1,1 @@
-{"name": "mycomplex"}
+[{"name": "mycomplex", "modelSeeds": [42], "dialect": "alphafoldserver", "version": 1, "sequences": [{"proteinChain": {"sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEV", "count": 1}}, {"proteinChain": {"sequence": "GVALDEFTPAELRKLLDTAYKQGY", "count": 1}}]}]

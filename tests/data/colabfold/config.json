@@ -1,1 +1,1 @@
-{"num_models": 2}
+{"num_queries": 1, "use_templates": false, "num_relax": 0, "msa_mode": "mmseqs2_uniref_env", "model_type": "alphafold2_multimer_v3", "num_models": 2, "num_recycles": 3, "num_seeds": 1, "random_seed": 0, "pair_mode": "unpaired_paired", "rank_by": "multimer", "version": "1.5.5"}

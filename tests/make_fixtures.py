@@ -103,11 +103,32 @@ def make_colabfold() -> None:
         }
         with open(out / f"{job}_scores_rank_{rank:03d}_{tag}.json", "w", encoding="utf-8") as fh:
             json.dump(scores, fh)
-    # Auxiliary files ColabFold drops alongside results; the parser must ignore them.
-    (out / "config.json").write_text(json.dumps({"num_models": 2}), encoding="utf-8")
+    # Auxiliary files ColabFold drops alongside results. The parser ignores most of
+    # them but mines config.json / log.txt / the a3m for provenance.
+    config = {
+        "num_queries": 1,
+        "use_templates": False,
+        "num_relax": 0,
+        "msa_mode": "mmseqs2_uniref_env",
+        "model_type": "alphafold2_multimer_v3",
+        "num_models": 2,
+        "num_recycles": 3,
+        "num_seeds": 1,
+        "random_seed": 0,
+        "pair_mode": "unpaired_paired",
+        "rank_by": "multimer",
+        "version": "1.5.5",
+    }
+    (out / "config.json").write_text(json.dumps(config), encoding="utf-8")
     (out / "cite.bibtex").write_text("@article{colabfold}\n", encoding="utf-8")
-    (out / "log.txt").write_text("Running ColabFold...\nDone.\n", encoding="utf-8")
-    (out / f"{job}.a3m").write_text(">query\nMKTAYI\n", encoding="utf-8")
+    (out / "log.txt").write_text(
+        "2024-01-01 ColabFold 1.5.5\nRunning ColabFold...\nDone.\n", encoding="utf-8"
+    )
+    # A small multi-sequence MSA so msa_depth is a meaningful count (3 sequences).
+    (out / f"{job}.a3m").write_text(
+        ">101\nMKTAYIAKQR\n>UniRef_1\nMKTAYIAKQR\n>UniRef_2\nMKTAFISKQR\n",
+        encoding="utf-8",
+    )
 
 
 def make_af3_server() -> None:
@@ -141,8 +162,21 @@ def make_af3_server() -> None:
         with open(out / f"{job}_summary_confidences_{idx}.json", "w", encoding="utf-8") as fh:
             json.dump(summary, fh)
     (out / "terms_of_use.md").write_text("Terms of use.\n", encoding="utf-8")
+    # The real AF3 Server ships the request as a single-element JSON array.
+    job_request = [
+        {
+            "name": "mycomplex",
+            "modelSeeds": [42],
+            "dialect": "alphafoldserver",
+            "version": 1,
+            "sequences": [
+                {"proteinChain": {"sequence": _SEQ_A, "count": 1}},
+                {"proteinChain": {"sequence": _SEQ_B, "count": 1}},
+            ],
+        }
+    ]
     (out / f"{job}_job_request.json").write_text(
-        json.dumps({"name": "mycomplex"}), encoding="utf-8"
+        json.dumps(job_request), encoding="utf-8"
     )
 
 
@@ -227,7 +261,15 @@ def make_openfold3() -> None:
         ) as fh:
             json.dump(summary, fh)
     (root / "experiment_config.json").write_text(
-        json.dumps({"seeds": [1], "samples": 2}), encoding="utf-8"
+        json.dumps(
+            {
+                "seeds": [1],
+                "samples": 2,
+                "version": "openfold3-1.0.0",
+                "weights": "openfold3_initial.pt",
+            }
+        ),
+        encoding="utf-8",
     )
 
 
@@ -328,6 +370,8 @@ def make_alphafold_db() -> None:
             "organismScientificName": "Homo sapiens",
             "globalMetricValue": float(np.mean(plddt)),
             "latestVersion": ver,
+            "modelCreatedDate": "2024-06-01",
+            "sequenceVersionDate": "2021-09-29",
         }
         with open(out / f"AF-{acc}-F1-metadata.json", "w", encoding="utf-8") as fh:
             json.dump(metadata, fh)

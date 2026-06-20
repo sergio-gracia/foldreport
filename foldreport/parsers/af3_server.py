@@ -21,7 +21,7 @@ from pathlib import Path
 
 import numpy as np
 
-from foldreport.models import Prediction, PredictionMetrics
+from foldreport.models import Prediction, PredictionMetrics, Provenance
 from foldreport.parsers import base
 
 _MODEL_RE = re.compile(r"^(?P<job>.+)_model_(?P<idx>\d+)\.(?:cif|pdb)$")
@@ -53,6 +53,9 @@ class Af3ServerParser:
         models = self._index(path, _MODEL_RE)
         summaries = self._index(path, _SUMMARY_RE)
         fulldata = self._index(path, _FULLDATA_RE)
+
+        # The job request (one per folder) records the seeds and request dialect.
+        provenance = _provenance(path)
 
         predictions: list[Prediction] = []
         for (job, idx), struct_path in sorted(models.items(), key=lambda kv: kv[0][1]):
@@ -92,6 +95,7 @@ class Af3ServerParser:
                     pae=pae,
                     metrics=metrics,
                     rank=int(idx) + 1,  # model_0 is the top-ranked model
+                    provenance=provenance,
                     raw_files=raw_files,
                 )
             )
@@ -109,6 +113,57 @@ class Af3ServerParser:
 
 def _clean_job(job: str) -> str:
     return job[len("fold_"):] if job.startswith("fold_") else job
+
+
+def _provenance(path: Path) -> Provenance:
+    """Reproducibility metadata from ``*_job_request.json``.
+
+    The AF3 Server download does not stamp an explicit model version, so we record
+    only what the request truly contains (seeds, dialect, request version) and leave
+    everything else as ``None``.
+    """
+    prov = Provenance()
+    request = _load_job_request(path)
+    if not request:
+        return prov
+
+    seeds = request.get("modelSeeds") or request.get("model_seeds")
+    if isinstance(seeds, list):
+        prov.seeds = [int(s) for s in seeds if _is_intlike(s)]
+
+    dialect = request.get("dialect")
+    version = request.get("version")
+    if dialect is not None:
+        # e.g. "alphafoldserver" (+ schema version) — provenance, not the model version.
+        prov.extra["request_dialect"] = (
+            f"{dialect} v{version}" if version is not None else str(dialect)
+        )
+    elif version is not None:
+        prov.extra["request_version"] = str(version)
+    return prov
+
+
+def _load_job_request(path: Path) -> dict:
+    """Load the per-folder job request, tolerating the list- or dict-shaped form."""
+    for entry in path.iterdir():
+        if entry.name.endswith("_job_request.json"):
+            try:
+                with open(entry, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+            except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+                return {}
+            if isinstance(data, list):
+                return data[0] if data and isinstance(data[0], dict) else {}
+            return data if isinstance(data, dict) else {}
+    return {}
+
+
+def _is_intlike(value) -> bool:
+    try:
+        int(value)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def _load_json(path: Path | None) -> dict:

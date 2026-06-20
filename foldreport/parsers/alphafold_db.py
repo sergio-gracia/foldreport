@@ -25,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
-from foldreport.models import Prediction, PredictionMetrics
+from foldreport.models import Prediction, PredictionMetrics, Provenance
 from foldreport.parsers import base
 
 _MODEL_RE = re.compile(
@@ -93,10 +93,32 @@ class AlphaFoldDBParser:
                     pae=pae,
                     metrics=metrics,
                     rank=1,  # one published model per entry
+                    provenance=_provenance(struct_path, meta),
                     raw_files=raw_files,
                 )
             )
         return predictions
+
+
+def _provenance(struct_path: Path, meta: dict) -> Provenance:
+    """Reproducibility metadata from the DB file name and saved API ``metadata.json``."""
+    prov = Provenance()
+    m = _MODEL_RE.match(struct_path.name)
+    if m:
+        prov.model_name = f"v{m['ver']}"  # AlphaFold DB model version, e.g. "v6"
+    prov.created_date = _opt_str(meta.get("modelCreatedDate"))
+    prov.database_snapshot = _opt_str(meta.get("sequenceVersionDate"))
+    organism = meta.get("organismScientificName")
+    if organism:
+        prov.extra["organism"] = str(organism)
+    description = meta.get("uniprotDescription")
+    if description:
+        prov.extra["description"] = str(description)
+    return prov
+
+
+def _opt_str(value) -> str | None:
+    return None if value is None else str(value)
 
 
 def _display_name(acc: str, meta: dict) -> str:

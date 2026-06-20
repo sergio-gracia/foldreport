@@ -25,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
-from foldreport.models import Prediction, PredictionMetrics
+from foldreport.models import Prediction, PredictionMetrics, Provenance
 from foldreport.parsers import base
 
 _SAMPLE_DIR_RE = re.compile(r"^seed-(?P<seed>\d+)_sample-(?P<sample>\d+)$")
@@ -34,6 +34,7 @@ _SUMMARY_RE = re.compile(r"^(?P<job>.+)_summary_confidences\.json$")
 # keeps the two files distinct regardless of directory iteration order.
 _CONF_RE = re.compile(r"^(?P<job>.+)(?<!_summary)_confidences\.json$")
 _MODEL_RE = re.compile(r"^(?P<job>.+)_model\.(?:cif|pdb)$")
+_EXP_CONFIG_RE = re.compile(r"^experiment_config\.json$")
 
 
 class OpenFold3Parser:
@@ -111,6 +112,7 @@ class OpenFold3Parser:
             pae=pae,
             metrics=metrics,
             rank=None,  # assigned after global ranking in parse()
+            provenance=_provenance(sample_dir),
             raw_files=raw_files,
         )
 
@@ -130,6 +132,28 @@ class OpenFold3Parser:
             if has_summary and has_conf:
                 seen.add(entry)
                 yield entry
+
+
+def _provenance(sample_dir: Path) -> Provenance:
+    """Reproducibility metadata for one OpenFold3 draw.
+
+    The seed and sample index are encoded in the directory name (``seed-S_sample-N``);
+    ``experiment_config.json`` at the job root may add the model version / weights.
+    """
+    prov = Provenance()
+    m = _SAMPLE_DIR_RE.match(sample_dir.name)
+    if m:
+        prov.seeds = [int(m["seed"])]
+        prov.extra["sample"] = m["sample"]
+
+    config = _load_json(_find(sample_dir.parent, _EXP_CONFIG_RE))
+    version = config.get("version") or config.get("model_version")
+    if version is not None:
+        prov.model_name = str(version)
+    weights = config.get("weights") or config.get("checkpoint")
+    if weights is not None:
+        prov.extra["weights"] = str(weights)
+    return prov
 
 
 def _per_residue_plddt(conf: dict) -> list[float]:

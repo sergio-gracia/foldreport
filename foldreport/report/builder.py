@@ -40,8 +40,13 @@ def build_report(
     predictions: Sequence[Prediction],
     output_path: Path,
     title: str = "FoldReport",
+    colorblind: bool = False,
 ) -> Path:
-    """Render ``predictions`` into a single self-contained HTML file at ``output_path``."""
+    """Render ``predictions`` into a single self-contained HTML file at ``output_path``.
+
+    When ``colorblind`` is set, the per-residue pLDDT bands use a colorblind-safe
+    palette. PAE already uses a single-hue sequential scale, which is colorblind-safe.
+    """
     output_path = Path(output_path)
     ordered = rank_predictions(predictions)
 
@@ -53,6 +58,7 @@ def build_report(
 
     models_json = {}
     pae_json = {}
+    provenance_json = {}
     detail_cards = []
     for idx, (pred, row) in enumerate(zip(ordered, rows)):
         viewer_id = ids[idx]
@@ -61,7 +67,8 @@ def build_report(
         pae_data = figures.pae_data_for_js(pred)
         if pae_data is not None:
             pae_json[viewer_id] = pae_data
-        detail_cards.append(_detail_card(pred, row, viewer_id))
+        provenance_json[viewer_id] = _provenance_dict(pred)
+        detail_cards.append(_detail_card(pred, row, viewer_id, colorblind))
 
     html_out = (
         template.replace("__TITLE__", html.escape(title))
@@ -72,6 +79,8 @@ def build_report(
         .replace("__DETAIL_CARDS__", "\n".join(detail_cards))
         .replace("__MODELS_JSON__", json.dumps(models_json))
         .replace("__PAE_JSON__", json.dumps(pae_json))
+        .replace("__PROVENANCE_JSON__", json.dumps(provenance_json))
+        .replace("__PLDDT_COLORS_JS__", _plddt_colors_js(colorblind))
         # 3Dmol.js goes in last; it must not be touched by earlier replacements.
         .replace("__TDMOL_JS__", tdmol_js)
     )
@@ -165,9 +174,9 @@ def _table_cell(key: str, value, numeric: bool, fmt) -> str:
 # --- Detail cards ---------------------------------------------------------------------
 
 
-def _detail_card(pred: Prediction, row: dict, viewer_id: str) -> str:
+def _detail_card(pred: Prediction, row: dict, viewer_id: str, colorblind: bool = False) -> str:
     anchor = _anchor_id(pred.name)
-    figs = figures.make_figures(pred)
+    figs = figures.make_figures(pred, colorblind=colorblind)
     chips = _chips(pred, row)
 
     plddt_html = (
@@ -193,20 +202,114 @@ def _detail_card(pred: Prediction, row: dict, viewer_id: str) -> str:
   <div class="grid">
     <div>
       <div class="viewer" id="{viewer_id}"></div>
-      <div class="legend">
-        <span><i style="background:#0053D6"></i>Very high</span>
-        <span><i style="background:#65CBF3"></i>Confident</span>
-        <span><i style="background:#FFDB13"></i>Low</span>
-        <span><i style="background:#FF7D45"></i>Very low</span>
-      </div>
+      <div class="legend">{_plddt_legend(colorblind)}</div>
     </div>
     <div class="figs">
       {plddt_html}
       {pae_html}
     </div>
   </div>
+  {_provenance_html(pred)}
 </div>
 """
+
+
+# --- Provenance -----------------------------------------------------------------------
+
+# (label, attribute, formatter) for the human-readable provenance rows.
+_PROVENANCE_FIELDS = [
+    ("Model", "model_name", str),
+    ("Tool version", "tool_version", str),
+    ("Seeds", "seeds", lambda v: ", ".join(str(s) for s in v)),
+    ("MSA mode", "msa_mode", str),
+    ("MSA depth", "msa_depth", lambda v: f"{int(v):,} sequences"),
+    ("Recycles", "num_recycles", lambda v: str(int(v))),
+    ("Templates", "use_templates", lambda v: "Yes" if v else "No"),
+    ("Database snapshot", "database_snapshot", str),
+    ("Created", "created_date", str),
+]
+
+
+def _provenance_rows(pred: Prediction) -> list[tuple[str, str]]:
+    """(label, value) pairs for everything actually captured, in display order."""
+    prov = pred.provenance
+    rows: list[tuple[str, str]] = []
+    for label, attr, fmt in _PROVENANCE_FIELDS:
+        value = getattr(prov, attr)
+        if value is None or (isinstance(value, list) and not value):
+            continue
+        rows.append((label, fmt(value)))
+    for key, value in prov.extra.items():
+        rows.append((key.replace("_", " ").capitalize(), str(value)))
+    return rows
+
+
+def _provenance_html(pred: Prediction) -> str:
+    """A collapsible provenance panel: captured metadata plus the source files.
+
+    Reproducibility is the point — the reviewer (or the future you) should see exactly
+    what produced this figure without leaving the HTML. Fields the tool did not record
+    are omitted rather than invented.
+    """
+    rows = _provenance_rows(pred)
+    items = [
+        f'<div class="prov-item"><span>{html.escape(label)}</span><b>{html.escape(value)}</b></div>'
+        for label, value in rows
+    ]
+    if not items:
+        items.append('<div class="prov-item prov-na">No provenance recorded by the tool</div>')
+
+    files = [
+        f'<div class="prov-item"><span>{html.escape(role)}</span><b>{html.escape(path.name)}</b></div>'
+        for role, path in pred.raw_files.items()
+    ]
+    files_block = (
+        '<div class="prov-sub">Source files</div>' + "".join(files) if files else ""
+    )
+
+    return (
+        '<details class="provenance">'
+        "<summary>Provenance &amp; reproducibility</summary>"
+        f'<div class="prov-grid">{"".join(items)}{files_block}</div>'
+        "</details>"
+    )
+
+
+def _provenance_dict(pred: Prediction) -> dict:
+    """Machine-readable provenance embedded in the HTML for downstream extraction."""
+    prov = pred.provenance
+    return {
+        "name": pred.name,
+        "source_tool": pred.source_tool,
+        "model_name": prov.model_name,
+        "tool_version": prov.tool_version,
+        "seeds": prov.seeds,
+        "msa_mode": prov.msa_mode,
+        "msa_depth": prov.msa_depth,
+        "num_recycles": prov.num_recycles,
+        "use_templates": prov.use_templates,
+        "database_snapshot": prov.database_snapshot,
+        "created_date": prov.created_date,
+        "extra": prov.extra,
+        "source_files": {role: path.name for role, path in pred.raw_files.items()},
+    }
+
+
+_PLDDT_LEGEND_LABELS = ["Very high", "Confident", "Low", "Very low"]
+
+
+def _plddt_legend(colorblind: bool) -> str:
+    """Legend swatches matching the pLDDT palette actually used in the figures/viewer."""
+    bands = figures.plddt_bands(colorblind)
+    return "".join(
+        f'<span><i style="background:{color}"></i>{label}</span>'
+        for (_low, _high, color, _full), label in zip(bands, _PLDDT_LEGEND_LABELS)
+    )
+
+
+def _plddt_colors_js(colorblind: bool) -> str:
+    """JSON array of band colors (high to low) for the 3D viewer's color function."""
+    return json.dumps([color for (_low, _high, color, _full) in figures.plddt_bands(colorblind)])
 
 
 def _chips(pred: Prediction, row: dict) -> str:

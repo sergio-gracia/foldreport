@@ -41,15 +41,15 @@ jobs:
         run: python -m pip install .
 
       - name: Build demo report
+        # Built from the real AlphaFold DB proteins bundled in examples/afdb_demo
+        # (insulin, polyubiquitin-C, lysozyme C, hemoglobin alpha) — genuine folded
+        # structures with real pLDDT, PAE and provenance, not synthetic fixtures.
         run: |
           mkdir -p site
           foldreport \
-            examples/demo/colabfold \
-            examples/demo/af3_server \
-            examples/demo/boltz \
-            examples/demo/openfold3 \
+            examples/afdb_demo \
             -o site/index.html \
-            -t "FoldReport — live demo report"
+            -t "FoldReport — live demo (real AlphaFold DB proteins)"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

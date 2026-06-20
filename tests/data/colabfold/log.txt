@@ -1,2 +1,3 @@
+2024-01-01 ColabFold 1.5.5
 Running ColabFold...
 Done.

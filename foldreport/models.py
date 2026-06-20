@@ -44,6 +44,57 @@ class PredictionMetrics:
 
 
 @dataclass
+class Provenance:
+    """Reproducibility metadata captured from a prediction's own files.
+
+    The "future you" (or a reviewer) should be able to read off *what produced this
+    figure*: which model, which MSA, which seed, which database snapshot, on which
+    date. Every field is optional and is populated **only** from data found on disk —
+    never inferred or invented, exactly like :class:`PredictionMetrics`. Whatever a
+    tool records but doesn't map to a common field goes in ``extra`` so we can surface
+    it without inventing a fixed schema for every tool.
+
+    Attributes:
+        model_name: The model / preset that ran (e.g. "alphafold2_multimer_v3", "v6").
+        tool_version: Version string of the predicting tool (e.g. ColabFold "1.5.5").
+        seeds: Random seeds used, when recorded.
+        msa_mode: How the MSA was built (e.g. "mmseqs2_uniref_env", "single_sequence").
+        msa_depth: Number of sequences in the MSA, when known.
+        num_recycles: Recycle count, when recorded.
+        use_templates: Whether structural templates were used, when recorded.
+        database_snapshot: A database version/date stamp, when recorded.
+        created_date: Date the prediction was produced, when recorded (as found).
+        extra: Tool-specific key/value pairs that don't map to the fields above.
+    """
+
+    model_name: str | None = None
+    tool_version: str | None = None
+    seeds: list[int] = field(default_factory=list)
+    msa_mode: str | None = None
+    msa_depth: int | None = None
+    num_recycles: int | None = None
+    use_templates: bool | None = None
+    database_snapshot: str | None = None
+    created_date: str | None = None
+    extra: dict[str, str] = field(default_factory=dict)
+
+    def is_empty(self) -> bool:
+        """True when nothing was captured (so the report can render "N/A")."""
+        return (
+            self.model_name is None
+            and self.tool_version is None
+            and not self.seeds
+            and self.msa_mode is None
+            and self.msa_depth is None
+            and self.num_recycles is None
+            and self.use_templates is None
+            and self.database_snapshot is None
+            and self.created_date is None
+            and not self.extra
+        )
+
+
+@dataclass
 class Prediction:
     """A single predicted model, normalized across tools.
 
@@ -56,6 +107,7 @@ class Prediction:
         pae: Predicted Aligned Error matrix (N_tokens x N_tokens) or ``None``.
         metrics: Normalized scalar metrics.
         rank: Tool-reported rank (1 = best) when available, else ``None``.
+        provenance: Reproducibility metadata captured from the prediction's files.
         raw_files: Provenance — maps a logical role to the file it came from.
     """
 
@@ -67,6 +119,7 @@ class Prediction:
     pae: np.ndarray | None = None
     metrics: PredictionMetrics = field(default_factory=PredictionMetrics)
     rank: int | None = None
+    provenance: Provenance = field(default_factory=Provenance)
     raw_files: dict[str, Path] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

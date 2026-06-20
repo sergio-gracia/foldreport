@@ -11,7 +11,7 @@ from pathlib import Path
 
 import click
 
-from foldreport import __version__
+from foldreport import __version__, figures
 from foldreport.metrics import ranked_dataframe
 from foldreport.parsers import detect_parser, parse_folder
 from foldreport.report import build_report
@@ -45,8 +45,44 @@ from foldreport.report import build_report
     default=None,
     help="Also write the ranked metrics table to this CSV path.",
 )
+@click.option(
+    "--figures-dir",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+    default=None,
+    help="Also export submission-ready pLDDT/PAE figures (one set per prediction) here.",
+)
+@click.option(
+    "--figure-format",
+    type=click.Choice(["pdf", "svg", "png"]),
+    multiple=True,
+    default=("pdf", "png"),
+    show_default=True,
+    help="Format(s) for exported figures. Repeat to write several.",
+)
+@click.option(
+    "--dpi",
+    type=click.IntRange(min=72),
+    default=300,
+    show_default=True,
+    help="Resolution for raster (PNG) exported figures.",
+)
+@click.option(
+    "--colorblind",
+    is_flag=True,
+    default=False,
+    help="Use a colorblind-safe palette for the pLDDT confidence bands.",
+)
 @click.version_option(__version__, "-V", "--version", prog_name="foldreport")
-def main(folders: tuple[Path, ...], output: Path, title: str, csv: Path | None) -> None:
+def main(
+    folders: tuple[Path, ...],
+    output: Path,
+    title: str,
+    csv: Path | None,
+    figures_dir: Path | None,
+    figure_format: tuple[str, ...],
+    dpi: int,
+    colorblind: bool,
+) -> None:
     """Build a single HTML report from prediction FOLDERS.
 
     Supported tools (autodetected): ColabFold, AlphaFold 3 Server, Boltz, OpenFold3,
@@ -70,7 +106,21 @@ def main(folders: tuple[Path, ...], output: Path, title: str, csv: Path | None) 
         ranked_dataframe(predictions).to_csv(csv, index=False)
         click.echo(f"  > Metrics table: {csv}")
 
-    out_path = build_report(predictions, output, title=title)
+    if figures_dir is not None:
+        n_files = 0
+        for pred in predictions:
+            n_files += len(
+                figures.save_publication_figures(
+                    pred,
+                    figures_dir,
+                    dpi=dpi,
+                    formats=tuple(figure_format),
+                    colorblind=colorblind,
+                )
+            )
+        click.echo(f"  > Figures ({n_files} files): {figures_dir}")
+
+    out_path = build_report(predictions, output, title=title, colorblind=colorblind)
     click.echo(f"  > Report ({len(predictions)} predictions): {out_path}")
 
 

@@ -5,10 +5,12 @@ that ranks them all by confidence.**
 
 ### ▶ [Try the live demo report →](https://sergio-gracia.github.io/foldreport/)
 
-See exactly what you get before installing anything: the same complex predicted by all
-four supported tools (eight pooled predictions), ranked in one page. Click a row to open
-its detail card — interactive 3D viewer colored by pLDDT, per-residue pLDDT plot, PAE
-heatmap, and interface metrics. It is the exact file `foldreport` writes, served as-is.
+See exactly what you get before installing anything: four real AlphaFold DB proteins —
+insulin, polyubiquitin-C, lysozyme C and hemoglobin subunit alpha — ranked in one page.
+Click a row to open its detail card — interactive 3D viewer colored by pLDDT, per-residue
+pLDDT plot, PAE heatmap, interface metrics, and a provenance panel (model version, dates,
+organism) read straight from the database files. It is the exact file `foldreport` writes,
+served as-is.
 
 FoldReport reads the outputs of modern structure-prediction tools — **ColabFold**,
 the **AlphaFold 3 Server**, **Boltz**, and **OpenFold3** — as well as entries from the
@@ -16,7 +18,10 @@ the **AlphaFold 3 Server**, **Boltz**, and **OpenFold3** — as well as entries 
 `.html` file: a confidence-ranked table on top (filterable by tool,
 name, and confidence), and a detail card per prediction with an embedded 3D viewer
 (colored by pLDDT), a per-residue pLDDT plot, an interactive PAE heatmap, and interface
-metrics (pTM, ipTM, …).
+metrics (pTM, ipTM, …). Each card also carries a **Provenance & reproducibility** panel
+— model version, seeds, MSA mode/depth, recycles, database snapshot — read straight from
+each tool's own files (never invented; missing fields show as "N/A") and embedded in the
+HTML in machine-readable form so a reviewer or the future you can reproduce any figure.
 
 The report is **one file**. No server, no notebook, no internet connection, and no
 adjacent assets — open it in any browser and share it as a single attachment.
@@ -70,7 +75,27 @@ foldreport run_colabfold/ run_af3/ run_boltz/ run_openfold3/ -o combined.html
 | `-o, --output` | Path of the HTML report to write (default `foldreport.html`). |
 | `-t, --title` | Title shown at the top of the report. |
 | `--csv` | Also write the ranked metrics table as CSV. |
+| `--figures-dir` | Also export submission-ready pLDDT/PAE figures (one set per prediction) to this folder. |
+| `--figure-format` | Format(s) for exported figures: `pdf`, `svg`, `png` (repeat to write several; default `pdf` + `png`). |
+| `--dpi` | Resolution for raster (PNG) exported figures (default `300`). |
+| `--colorblind` | Use a colorblind-safe palette for the pLDDT confidence bands. |
 | `-V, --version` | Print version. |
+
+### Submission-ready figures
+
+`--figures-dir` writes standalone figures for every prediction, designed to drop into a
+manuscript:
+
+```bash
+foldreport run_af3/ -o report.html --figures-dir figures/ --figure-format pdf --dpi 600
+```
+
+- **Vector PDF/SVG with embedded fonts** so a figure renders identically on any machine.
+- **One shared PAE colour scale** (the AlphaFold 0–31.75 Å convention) across every
+  prediction, so a darker panel always means lower error — comparisons stay visually
+  honest instead of reflecting a per-figure `vmax`.
+- **`--colorblind`** switches the categorical pLDDT bands to a colorblind-safe palette
+  (applied consistently to the plot, the legend, and the 3D viewer).
 
 ## Supported tools
 
