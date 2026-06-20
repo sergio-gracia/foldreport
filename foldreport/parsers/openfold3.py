@@ -30,7 +30,9 @@ from foldreport.parsers import base
 
 _SAMPLE_DIR_RE = re.compile(r"^seed-(?P<seed>\d+)_sample-(?P<sample>\d+)$")
 _SUMMARY_RE = re.compile(r"^(?P<job>.+)_summary_confidences\.json$")
-_CONF_RE = re.compile(r"^(?P<job>.+)_confidences\.json$")
+# Must not also match "<job>_summary_confidences.json"; the negative lookbehind
+# keeps the two files distinct regardless of directory iteration order.
+_CONF_RE = re.compile(r"^(?P<job>.+)(?<!_summary)_confidences\.json$")
 _MODEL_RE = re.compile(r"^(?P<job>.+)_model\.(?:cif|pdb)$")
 
 

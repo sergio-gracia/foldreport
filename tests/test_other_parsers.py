@@ -5,6 +5,20 @@ from __future__ import annotations
 import numpy as np
 
 from foldreport.parsers import detect_parser, parse_folder
+from foldreport.parsers.openfold3 import _CONF_RE, _SUMMARY_RE
+
+
+def test_openfold3_confidence_patterns_do_not_overlap():
+    """The summary file must not also match the per-token confidences pattern.
+
+    Both files end in ``_confidences.json``; if the patterns overlap, directory
+    iteration order decides which file is read as the confidences (PAE) source,
+    which made the parser drop PAE on filesystems with arbitrary readdir order.
+    """
+    summary = "mycomplex_summary_confidences.json"
+    conf = "mycomplex_confidences.json"
+    assert _SUMMARY_RE.match(summary) and not _SUMMARY_RE.match(conf)
+    assert _CONF_RE.match(conf) and not _CONF_RE.match(summary)
 
 
 def test_af3_autodetect_and_parse(af3_dir):
