@@ -3,6 +3,13 @@
 **Point it at a folder of structure predictions and get one self-contained HTML report
 that ranks them all by confidence.**
 
+### ▶ [Try the live demo report →](https://sergio-gracia.github.io/foldreport/)
+
+See exactly what you get before installing anything: the same complex predicted by all
+four supported tools (eight pooled predictions), ranked in one page. Click a row to open
+its detail card — interactive 3D viewer colored by pLDDT, per-residue pLDDT plot, PAE
+heatmap, and interface metrics. It is the exact file `foldreport` writes, served as-is.
+
 FoldReport reads the outputs of modern structure-prediction tools — **ColabFold**,
 the **AlphaFold 3 Server**, **Boltz**, and **OpenFold3** — as well as entries from the
 **AlphaFold Protein Structure Database**, and unifies them into a single navigable
