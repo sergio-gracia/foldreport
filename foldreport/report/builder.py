@@ -75,7 +75,7 @@ def build_report(
         .replace("__VERSION__", html.escape(__version__))
         .replace("__GENERATED__", _now())
         .replace("__SUMMARY__", _summary(ordered))
-        .replace("__RANKING_TABLE__", _ranking_table(rows))
+        .replace("__RANKING_TABLE__", _ranking_table(rows, colorblind))
         .replace("__DETAIL_CARDS__", "\n".join(detail_cards))
         .replace("__MODELS_JSON__", json.dumps(models_json))
         .replace("__PAE_JSON__", json.dumps(pae_json))
@@ -140,25 +140,43 @@ def _summary(predictions: Sequence[Prediction]) -> str:
     )
 
 
-def _ranking_table(rows: list[dict]) -> str:
+def _ranking_table(rows: list[dict], colorblind: bool = False) -> str:
+    # Tooltips spell out each metric so the table is self-explanatory to a reader who
+    # opens the report cold.
+    headers_help = {
+        "#": "Overall rank by combined confidence (best first)",
+        "Prediction": "Prediction name; click to jump to its detail card",
+        "Tool": "Tool that produced the prediction",
+        "Confidence": "Combined confidence used for ranking (0-1, higher is better)",
+        "Mean pLDDT": "Mean per-residue confidence (0-100, higher is better)",
+        "pTM": "Predicted TM-score for the whole structure (0-1)",
+        "ipTM": "Interface predicted TM-score for complexes (0-1)",
+        "mpDockQ": "Multi-chain DockQ for complex interfaces (0-1)",
+        "Chains": "Number of chains",
+        "Residues": "Total number of residues",
+    }
     head_cells = []
     for _key, header, numeric, _fmt in _TABLE_COLUMNS:
         cls = "" if numeric else ' class="txt"'
-        head_cells.append(f"<th{cls}>{html.escape(header)}</th>")
+        tip = headers_help.get(header, "")
+        title = f' title="{html.escape(tip)}"' if tip else ""
+        head_cells.append(f"<th{cls}{title}>{html.escape(header)}</th>")
     thead = "<thead><tr>" + "".join(head_cells) + "</tr></thead>"
 
     body_rows = []
     for row in rows:
+        rank = row.get("overall_rank")
+        row_cls = f' class="top{rank}"' if isinstance(rank, int) and rank <= 3 else ""
         cells = []
         for key, _header, numeric, fmt in _TABLE_COLUMNS:
             value = row.get(key)
-            cells.append(_table_cell(key, value, numeric, fmt))
-        body_rows.append("<tr>" + "".join(cells) + "</tr>")
+            cells.append(_table_cell(key, value, numeric, fmt, colorblind))
+        body_rows.append(f"<tr{row_cls}>" + "".join(cells) + "</tr>")
     tbody = "<tbody>" + "".join(body_rows) + "</tbody>"
     return thead + tbody
 
 
-def _table_cell(key: str, value, numeric: bool, fmt) -> str:
+def _table_cell(key: str, value, numeric: bool, fmt, colorblind: bool = False) -> str:
     if value is None or (isinstance(value, float) and np.isnan(value)):
         # Sort missing numbers to the bottom regardless of direction intent.
         return '<td class="na" data-v="">N/A</td>'
@@ -168,7 +186,44 @@ def _table_cell(key: str, value, numeric: bool, fmt) -> str:
         return f'<td class="txt" data-v="{text}"><a class="jump" href="#{anchor}">{text}</a></td>'
     cls = "" if numeric else ' class="txt"'
     data_v = value if numeric else html.escape(str(value))
-    return f'<td{cls} data-v="{data_v}">{html.escape(fmt(value))}</td>'
+    body = html.escape(fmt(value))
+    # Color-coded dots let a reader triage hundreds of rows at a glance: the two primary
+    # confidence metrics get a band swatch (matching the figures/legend) next to the value.
+    dot = _metric_dot(key, value, colorblind)
+    return f'<td{cls} data-v="{data_v}">{dot}{body}</td>'
+
+
+# --- Confidence color-coding (triage at a glance) -------------------------------------
+
+# Bands for the combined confidence score (0-1). Green/amber/red reads as good/ok/poor
+# regardless of the pLDDT palette in use.
+_CONFIDENCE_COLORS = [(0.8, "#15803d"), (0.6, "#b45309"), (0.0, "#b91c1c")]
+
+
+def _confidence_color(value: float) -> str:
+    for threshold, color in _CONFIDENCE_COLORS:
+        if value >= threshold:
+            return color
+    return _CONFIDENCE_COLORS[-1][1]
+
+
+def _plddt_dot_color(value: float, colorblind: bool) -> str:
+    """Swatch color for a mean-pLDDT value, matching the figure/legend bands."""
+    for low, _high, color, _label in figures.plddt_bands(colorblind):
+        if value >= low:
+            return color
+    return figures.plddt_bands(colorblind)[-1][2]
+
+
+def _metric_dot(key: str, value, colorblind: bool) -> str:
+    """A small color swatch for the confidence/pLDDT columns, else nothing."""
+    if key == "confidence":
+        color = _confidence_color(float(value))
+    elif key == "mean_plddt":
+        color = _plddt_dot_color(float(value), colorblind)
+    else:
+        return ""
+    return f'<span class="mdot" style="background:{color}"></span>'
 
 
 # --- Detail cards ---------------------------------------------------------------------
@@ -190,8 +245,15 @@ def _detail_card(pred: Prediction, row: dict, viewer_id: str, colorblind: bool =
 
     pae_data = figures.pae_data_for_js(pred)
     if pae_data is not None:
-        # Interactive PAE canvas
-        pae_html = f'<div class="pae-container"><canvas class="pae-canvas" id="pae-{viewer_id}" width="400" height="400"></canvas><div class="pae-tooltip" id="pae-tip-{viewer_id}"></div></div>'
+        # Interactive PAE canvas. The canvas has no baked-in title or scale (unlike the
+        # static figure), so we add an HTML label and a color-scale legend here.
+        pae_html = (
+            '<div class="panel-label">Predicted Aligned Error '
+            '<span class="panel-hint">hover for residue-pair error</span></div>'
+            f'<div class="pae-container"><canvas class="pae-canvas" id="pae-{viewer_id}" width="400" height="400"></canvas>'
+            f'<div class="pae-tooltip" id="pae-tip-{viewer_id}"></div></div>'
+            + _pae_scale_legend(pae_data.get("max_val"))
+        )
     elif figs["pae"]:
         # Fallback static image
         pae_html = f'<img src="{figs["pae"]}" alt="Predicted Aligned Error">'
@@ -201,11 +263,15 @@ def _detail_card(pred: Prediction, row: dict, viewer_id: str, colorblind: bool =
 
     return f"""
 <div class="card" id="{anchor}">
-  <h3>{html.escape(pred.name)}</h3>
+  <div class="card-head">
+    <h3>{html.escape(pred.name)}</h3>
+    <a class="to-top" href="#ranking" title="Back to ranking">&uarr; ranking</a>
+  </div>
   <div class="meta">{html.escape(pred.source_tool)} &middot; {pred.metrics.n_chains} chains &middot; {pred.metrics.n_residues} residues</div>
   <div class="chips">{chips}</div>
   <div class="grid">
     <div>
+      <div class="panel-label">3D structure <span class="panel-hint">colored by pLDDT</span></div>
       <div class="viewer" id="{viewer_id}"></div>
       <div class="legend">{_plddt_legend(colorblind)}</div>
     </div>
@@ -217,6 +283,25 @@ def _detail_card(pred: Prediction, row: dict, viewer_id: str, colorblind: bool =
   {_provenance_html(pred)}
 </div>
 """
+
+
+def _pae_scale_legend(max_val: float | None) -> str:
+    """A horizontal color-scale legend for the interactive PAE heatmap.
+
+    Mirrors the JS ``paeColor`` gradient (dark green = low error, white = high) so the
+    interactive canvas is as interpretable as the static figure's colorbar.
+    """
+    ceiling = f"{float(max_val):.1f}" if max_val is not None else "max"
+    return (
+        '<div class="pae-scale">'
+        '<span class="pae-scale-cap">Expected position error</span>'
+        '<div class="pae-scale-row">'
+        '<span class="pae-scale-end">0 &#8491;</span>'
+        '<span class="pae-scale-bar"></span>'
+        f'<span class="pae-scale-end">{ceiling} &#8491;</span>'
+        "</div>"
+        "</div>"
+    )
 
 
 # Human-readable labels for the embedded download formats.
@@ -338,8 +423,10 @@ def _plddt_colors_js(colorblind: bool) -> str:
 
 
 def _chips(pred: Prediction, row: dict) -> str:
+    conf = row["confidence"]
+    conf_dot = f'<span class="mdot" style="background:{_confidence_color(float(conf))}"></span>'
     items = [
-        ("Confidence", f"{row['confidence']:.3f}"),
+        (f"{conf_dot}Confidence", f"{conf:.3f}"),
         ("Mean pLDDT", _fmt_opt(pred.metrics.mean_plddt, ".1f")),
         ("pTM", _fmt_opt(pred.metrics.ptm, ".3f")),
         ("ipTM", _fmt_opt(pred.metrics.iptm, ".3f")),
