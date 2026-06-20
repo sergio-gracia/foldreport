@@ -33,3 +33,33 @@ Spanish). Do not introduce non-English text into the codebase.
 - Install in editable mode: `.venv\Scripts\python.exe -m pip install -e ".[dev]"`
 - Run tests: `.venv\Scripts\python.exe -m pytest`
 - Keep dependencies minimal — one-command install is core to adoption.
+
+## Releasing (PyPI)
+
+The version has a **single source of truth: the git tag**. Do NOT hardcode a version
+anywhere. `pyproject.toml` uses `dynamic = ["version"]` with `setuptools-scm`, and
+`foldreport/__init__.py` reads `__version__` from the installed package metadata via
+`importlib.metadata`. A tag `vX.Y.Z` produces version `X.Y.Z`.
+
+To publish a new release, just create a GitHub Release — nothing to edit:
+
+```
+gh release create vX.Y.Z --generate-notes
+```
+
+This triggers `.github/workflows/publish.yml`, which builds on a clean runner (so
+stale `dist/` artifacts can never be re-uploaded), runs `twine check`, and publishes
+to PyPI via Trusted Publishing (OIDC, no stored token). The checkout uses
+`fetch-depth: 0` so setuptools-scm can see the tags.
+
+One-time PyPI setup: project Settings -> Publishing -> trusted publisher with owner
+`sergio-gracia`, repo `foldreport`, workflow `publish.yml`, environment `pypi`.
+
+Notes / gotchas:
+- Tags must match `vX.Y.Z` exactly. A malformed tag like `v.0.2.0` (extra dot) is
+  silently ignored by setuptools-scm and will not set the version.
+- Never run `twine upload` by hand. If you ever do a local build, `setuptools-scm`
+  yields a dev version (e.g. `0.1.1.devN+g<hash>`) when the tree is not on a tag —
+  do not upload those.
+- `File already exists` from PyPI means you tried to re-upload an existing version
+  (filenames can't be reused). Cut a new tag/release instead.
