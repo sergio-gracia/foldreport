@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "foldreport"
+version = "0.1.0"
+description = "Unify structure-prediction outputs (ColabFold, AlphaFold 3 Server, Boltz) into a single self-contained HTML report ranked by confidence."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Sergio Gracia" }]
+keywords = ["alphafold", "colabfold", "boltz", "protein-structure", "plddt", "pae", "bioinformatics"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "numpy>=1.23",
+    "pandas>=1.5",
+    "matplotlib>=3.6",
+    "gemmi>=0.6",
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+foldreport = "foldreport.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/sergio-gracia/foldreport"
+Issues = "https://github.com/sergio-gracia/foldreport/issues"
+
+[tool.setuptools.packages.find]
+include = ["foldreport*"]
+
+[tool.setuptools.package-data]
+"foldreport.report" = ["template.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

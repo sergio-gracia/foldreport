@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Virtualenv
+.venv/
+venv/
+
+# Generated outputs (keep them out of version control)
+examples/*_report.html
+examples/*_metrics.csv
+examples/demo_report.html
+examples/demo_metrics.csv
+/report.html
+*.tmp
+
+# Local editor / tooling config
+.claude/
