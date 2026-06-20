@@ -273,6 +273,53 @@ def make_openfold3() -> None:
     )
 
 
+def make_openfold3_server() -> None:
+    """OpenFold3 server (API) layout: structures embedded in one JSON, no PAE.
+
+    Mirrors the real server response: ``outputs[].structures_with_scores[]`` where each
+    entry carries the mmCIF as a string and only scalar scores. The parser materializes
+    each structure to a file and reads pLDDT from its B-factors.
+    """
+    out = DATA / "openfold3_server"
+    out.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(33)
+    n = _n_residues()
+    specs = [
+        ("input_1_sample_0", "seed_7", 0.93, 0.88, 0.0),
+        ("input_1_sample_1", "seed_7", 0.91, 0.85, 0.0),
+    ]
+    structures_with_scores = []
+    for name, source, ranking, ptm, iptm in specs:
+        plddt = _plddt(n, rng)
+        structure = _build_structure(plddt)
+        cif_text = structure.make_mmcif_document().as_string()
+        structures_with_scores.append(
+            {
+                "structure": cif_text,
+                "format": "cif",
+                "name": name,
+                "source": source,
+                "confidence_score": ranking,
+                "complex_plddt_score": float(np.mean(plddt)),
+                "complex_pde_score": float(rng.uniform(1, 6)),
+                "ptm_score": ptm,
+                "iptm_score": iptm,
+            }
+        )
+    doc = {
+        "request_id": "request_1",
+        "outputs": [
+            {
+                "input_id": "input_1",
+                "structures_with_scores": structures_with_scores,
+                "runtime_metrics": {},
+            }
+        ],
+    }
+    with open(out / "openfold3.json", "w", encoding="utf-8") as fh:
+        json.dump(doc, fh)
+
+
 # --- Edge-case fixtures ---------------------------------------------------------------
 
 
@@ -382,6 +429,7 @@ def main() -> None:
     make_af3_server()
     make_boltz()
     make_openfold3()
+    make_openfold3_server()
     make_single_chain()
     make_malformed()
     make_empty()

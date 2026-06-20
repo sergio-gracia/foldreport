@@ -18,7 +18,7 @@ DATA = Path(__file__).parent / "data"
 @pytest.fixture(scope="session", autouse=True)
 def _ensure_fixtures() -> None:
     """Regenerate fixtures before the test session if missing."""
-    if not (DATA / "alphafold_db").exists():
+    if not (DATA / "alphafold_db").exists() or not (DATA / "openfold3_server").exists():
         make_fixtures.main()
 
 
@@ -40,6 +40,11 @@ def boltz_dir() -> Path:
 @pytest.fixture
 def openfold3_dir() -> Path:
     return DATA / "openfold3"
+
+
+@pytest.fixture
+def openfold3_server_dir() -> Path:
+    return DATA / "openfold3_server"
 
 
 @pytest.fixture

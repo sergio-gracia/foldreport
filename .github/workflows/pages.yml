@@ -41,15 +41,38 @@ jobs:
         run: python -m pip install .
 
       - name: Build demo report
-        # Built from the real AlphaFold DB proteins bundled in examples/afdb_demo
-        # (insulin, polyubiquitin-C, lysozyme C, hemoglobin alpha) — genuine folded
-        # structures with real pLDDT, PAE and provenance, not synthetic fixtures.
+        # Preferred demo: the SAME protein (ubiquitin, 76 aa) predicted by several
+        # tools, in examples/multimodel_demo/. Each tool has its own subfolder;
+        # alphafold_db/ ships a real AlphaFold DB download, the rest are populated
+        # by the user (see that folder's README). Empty placeholder folders hold
+        # only a hidden .gitkeep, so `ls` (no -A) reports them as empty.
+        #
+        # Until at least two tools there have real results, fall back to the
+        # examples/afdb_demo sample (real AlphaFold DB proteins: insulin,
+        # polyubiquitin-C, lysozyme C, hemoglobin alpha) so the page is never empty.
         run: |
           mkdir -p site
-          foldreport \
-            examples/afdb_demo \
-            -o site/index.html \
-            -t "FoldReport — live demo (real AlphaFold DB proteins)"
+          dirs=""
+          n=0
+          for d in alphafold_db colabfold af3_server boltz openfold3; do
+            p="examples/multimodel_demo/$d"
+            if [ -d "$p" ] && [ -n "$(ls "$p" 2>/dev/null)" ]; then
+              dirs="$dirs $p"
+              n=$((n + 1))
+            fi
+          done
+          if [ "$n" -ge 2 ]; then
+            echo "Building multi-model demo from:$dirs"
+            foldreport $dirs \
+              -o site/index.html \
+              -t "FoldReport — one protein (ubiquitin), multiple models"
+          else
+            echo "Multi-model set not ready ($n tool folder(s)); using AlphaFold DB sample."
+            foldreport \
+              examples/afdb_demo \
+              -o site/index.html \
+              -t "FoldReport — live demo (real AlphaFold DB proteins)"
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

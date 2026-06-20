@@ -75,6 +75,38 @@ def test_openfold3_autodetect_and_parse(openfold3_dir):
     assert abs(top.metrics.mean_plddt - float(np.mean(top.plddt))) < 1e-6
 
 
+def test_openfold3_server_json_autodetect_and_parse(openfold3_server_dir, tmp_path):
+    # The server parser materializes the embedded structures next to the JSON, so
+    # work on a copy to keep tests/data pristine.
+    import shutil
+
+    work = tmp_path / "openfold3_server"
+    shutil.copytree(openfold3_server_dir, work)
+
+    parser = detect_parser(work)
+    assert parser is not None and parser.name == "openfold3"
+
+    preds = parse_folder(work)
+    assert len(preds) == 2
+    top = min(preds, key=lambda p: p.rank)
+    assert top.source_tool == "openfold3"
+    assert top.name == "input_1_sample_0"
+    assert top.metrics.n_residues == 56
+    assert top.metrics.n_chains == 2
+    assert top.metrics.ptm == 0.88
+    assert top.metrics.iptm == 0.0
+    assert top.metrics.ranking_score == 0.93
+    # The server layout returns no PAE matrix.
+    assert top.pae is None
+    # pLDDT comes from the embedded structure's B-factors, one value per residue.
+    assert len(top.plddt) == 56
+    assert 0 <= top.metrics.mean_plddt <= 100
+    # The embedded structure was extracted to a real on-disk file the viewer can read.
+    assert top.structure_path.exists()
+    # The seed is recovered from the entry's "source" field ("seed_7").
+    assert top.provenance.seeds == [7]
+
+
 def test_all_tools_share_the_representation(colabfold_dir, af3_dir, boltz_dir, openfold3_dir):
     """The same downstream code consumes every tool without knowing the format."""
     pooled = []

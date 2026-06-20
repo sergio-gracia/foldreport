@@ -16,7 +16,22 @@ examples/*_metrics.csv
 examples/demo_report.html
 examples/demo_metrics.csv
 /report.html
+/site/
+# Structures extracted from an OpenFold3 server JSON during parsing (derived data)
+**/*_structures/
 *.tmp
+
+# Multi-model demo: commit only what the parsers actually read. The MSAs,
+# templates and ColabFold env/ are large and regenerable, so they stay local
+# and out of the repo (FoldReport never reads them).
+examples/multimodel_demo/**/msas/
+examples/multimodel_demo/**/templates/
+examples/multimodel_demo/colabfold/*_env/
+examples/multimodel_demo/colabfold/*.a3m
+# This OpenFold3 server run is a DNA mis-prediction (the protein sequence was
+# read as nucleotides); keep it locally but out of the published demo until it
+# is re-run as a protein.
+examples/multimodel_demo/openfold3/openfold3.json
 
 # Local editor / tooling config
 .claude/
