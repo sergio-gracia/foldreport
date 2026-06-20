@@ -1,0 +1,23 @@
+# Source distribution contents.
+# The wheel's runtime data files are declared via [tool.setuptools.package-data]
+# in pyproject.toml; this file controls what extra files ship in the sdist.
+
+include README.md
+include LICENSE
+include CLAUDE.md
+include PLAN.md
+
+# Bundled report assets (also required at runtime).
+include foldreport/report/template.html
+include foldreport/report/3Dmol-min.js
+
+# Tests and their fixtures, so the sdist is self-checking.
+recursive-include tests *.py
+recursive-include tests/data *
+
+# Keep build noise out of the sdist.
+global-exclude __pycache__ *.py[cod]
+prune .github
+prune .claude
+prune examples
+prune .venv

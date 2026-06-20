@@ -41,7 +41,7 @@ Issues = "https://github.com/sergio-gracia/foldreport/issues"
 include = ["foldreport*"]
 
 [tool.setuptools.package-data]
-"foldreport.report" = ["template.html"]
+"foldreport.report" = ["template.html", "3Dmol-min.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
