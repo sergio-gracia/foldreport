@@ -69,6 +69,28 @@ def _fig_to_data_uri(fig: Figure, dpi: int = 150) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
+# MIME type per download format embedded in the report.
+_DOWNLOAD_MIME = {"png": "image/png", "pdf": "application/pdf", "svg": "image/svg+xml"}
+
+
+def _fig_to_download_uris(
+    fig: Figure, formats: tuple[str, ...], dpi: int
+) -> dict[str, str]:
+    """Serialize one figure to data URIs in several formats, then close it.
+
+    Reuses a single built figure for every format so the same plot is downloadable as
+    submission-ready PDF/PNG without rebuilding. ``dpi`` only affects raster output.
+    """
+    uris: dict[str, str] = {}
+    for fmt in formats:
+        buf = io.BytesIO()
+        fig.savefig(buf, format=fmt, dpi=dpi, bbox_inches="tight")
+        encoded = base64.b64encode(buf.getvalue()).decode("ascii")
+        uris[fmt] = f"data:{_DOWNLOAD_MIME[fmt]};base64,{encoded}"
+    plt.close(fig)
+    return uris
+
+
 # --- Figure construction (format-agnostic) --------------------------------------------
 
 
@@ -186,6 +208,36 @@ def make_figures(
         "pae": pae_figure(pred, vmax=vmax),
         "pae_interactive": pae_data_for_js(pred, vmax=vmax),
     }
+
+
+# Default submission-ready download formats embedded in the HTML report.
+DOWNLOAD_FORMATS = ("png", "pdf")
+DOWNLOAD_DPI = 300
+
+
+def publication_downloads(
+    pred: Prediction,
+    *,
+    formats: tuple[str, ...] = DOWNLOAD_FORMATS,
+    dpi: int = DOWNLOAD_DPI,
+    vmax: float | None = None,
+    colorblind: bool = False,
+) -> dict[str, dict[str, str]]:
+    """Submission-ready figures as data URIs, keyed by figure then format.
+
+    The same figures :func:`save_publication_figures` writes to disk, but embedded in
+    the HTML so a reviewer can download a 300-DPI PNG or vector PDF straight from the
+    report. Figures the prediction lacks are simply absent from the result.
+    """
+    downloads: dict[str, dict[str, str]] = {}
+    builders = (
+        ("plddt", build_plddt_figure(pred, colorblind=colorblind)),
+        ("pae", build_pae_figure(pred, vmax=vmax)),
+    )
+    for label, fig in builders:
+        if fig is not None:
+            downloads[label] = _fig_to_download_uris(fig, formats, dpi)
+    return downloads
 
 
 # --- Submission-ready export to disk --------------------------------------------------

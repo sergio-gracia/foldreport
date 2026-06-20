@@ -43,6 +43,32 @@ def test_save_publication_figures_writes_vector_and_raster(tmp_path, colabfold_d
     assert pdf.read_bytes()[:4] == b"%PDF"
 
 
+def test_publication_downloads_embed_as_decodable_data_uris(colabfold_dir):
+    """Both figures are downloadable from the HTML as self-contained PNG + PDF URIs."""
+    import base64
+
+    pred = parse_folder(colabfold_dir)[0]
+    downloads = figures.publication_downloads(pred)
+    assert set(downloads) == {"plddt", "pae"}
+    for fmt_uris in downloads.values():
+        assert set(fmt_uris) == {"png", "pdf"}
+        png = base64.b64decode(fmt_uris["png"].split(",", 1)[1])
+        pdf = base64.b64decode(fmt_uris["pdf"].split(",", 1)[1])
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+        assert pdf[:4] == b"%PDF"
+
+
+def test_report_offers_per_figure_downloads(tmp_path, colabfold_dir):
+    preds = parse_folder(colabfold_dir)
+    out = tmp_path / "dl.html"
+    build_report(preds, out)
+    text = out.read_text(encoding="utf-8")
+    assert 'download="' in text
+    assert "data:application/pdf;base64," in text
+    # One PNG + one PDF link per figure, two figures per prediction.
+    assert text.count('class="dl"') == len(preds) * 2 * 2
+
+
 def test_save_publication_figures_skips_absent_metrics(tmp_path):
     from foldreport.models import Prediction, PredictionMetrics
 

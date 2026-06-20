@@ -177,13 +177,17 @@ def _table_cell(key: str, value, numeric: bool, fmt) -> str:
 def _detail_card(pred: Prediction, row: dict, viewer_id: str, colorblind: bool = False) -> str:
     anchor = _anchor_id(pred.name)
     figs = figures.make_figures(pred, colorblind=colorblind)
+    downloads = figures.publication_downloads(pred, colorblind=colorblind)
     chips = _chips(pred, row)
+    stem = figures._safe_stem(pred.name)
 
     plddt_html = (
         f'<img src="{figs["plddt"]}" alt="Per-residue pLDDT">'
         if figs["plddt"]
         else '<div class="na-fig">pLDDT not available</div>'
     )
+    plddt_html += _download_links(downloads.get("plddt"), stem, "plddt")
+
     pae_data = figures.pae_data_for_js(pred)
     if pae_data is not None:
         # Interactive PAE canvas
@@ -193,6 +197,7 @@ def _detail_card(pred: Prediction, row: dict, viewer_id: str, colorblind: bool =
         pae_html = f'<img src="{figs["pae"]}" alt="Predicted Aligned Error">'
     else:
         pae_html = '<div class="na-fig">PAE not available</div>'
+    pae_html += _download_links(downloads.get("pae"), stem, "pae")
 
     return f"""
 <div class="card" id="{anchor}">
@@ -212,6 +217,26 @@ def _detail_card(pred: Prediction, row: dict, viewer_id: str, colorblind: bool =
   {_provenance_html(pred)}
 </div>
 """
+
+
+# Human-readable labels for the embedded download formats.
+_DOWNLOAD_LABELS = {"png": "PNG (300 dpi)", "pdf": "PDF (vector)", "svg": "SVG (vector)"}
+
+
+def _download_links(uris: dict | None, stem: str, label: str) -> str:
+    """Submission-ready download links for one figure, or empty if it has none.
+
+    Each link is a self-contained data URI, so the publication-quality figure travels
+    inside the single HTML file with no adjacent assets.
+    """
+    if not uris:
+        return ""
+    links = "".join(
+        f'<a class="dl" download="{html.escape(stem)}_{label}.{fmt}" '
+        f'href="{uri}">{_DOWNLOAD_LABELS.get(fmt, fmt.upper())}</a>'
+        for fmt, uri in uris.items()
+    )
+    return f'<div class="dl-row"><span class="dl-label">Download</span>{links}</div>'
 
 
 # --- Provenance -----------------------------------------------------------------------

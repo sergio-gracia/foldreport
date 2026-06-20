@@ -18,7 +18,9 @@ the **AlphaFold 3 Server**, **Boltz**, and **OpenFold3** — as well as entries 
 `.html` file: a confidence-ranked table on top (filterable by tool,
 name, and confidence), and a detail card per prediction with an embedded 3D viewer
 (colored by pLDDT), a per-residue pLDDT plot, an interactive PAE heatmap, and interface
-metrics (pTM, ipTM, …). Each card also carries a **Provenance & reproducibility** panel
+metrics (pTM, ipTM, …). The pLDDT and PAE figures each carry **Download** links to a
+submission-ready 300-DPI PNG and vector PDF, embedded in the file itself. Each card also
+carries a **Provenance & reproducibility** panel
 — model version, seeds, MSA mode/depth, recycles, database snapshot — read straight from
 each tool's own files (never invented; missing fields show as "N/A") and embedded in the
 HTML in machine-readable form so a reviewer or the future you can reproduce any figure.
@@ -83,8 +85,14 @@ foldreport run_colabfold/ run_af3/ run_boltz/ run_openfold3/ -o combined.html
 
 ### Submission-ready figures
 
-`--figures-dir` writes standalone figures for every prediction, designed to drop into a
-manuscript:
+Every detail card carries **Download** links right under its pLDDT and PAE figures —
+a 300-DPI PNG and a vector PDF, embedded in the HTML as data URIs. So the
+publication-quality figure (with axes, units, and colour bar — not the lightweight
+interactive widget) travels inside the single file: a reviewer can grab it straight from
+the report with no extra command.
+
+To also write the same figures to disk as separate files, `--figures-dir` emits a set per
+prediction, designed to drop into a manuscript:
 
 ```bash
 foldreport run_af3/ -o report.html --figures-dir figures/ --figure-format pdf --dpi 600
